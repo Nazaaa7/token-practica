@@ -1,63 +1,36 @@
-// src/controllers/authController.js
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const db = require('../config/database'); // Conexión a la base de datos
-const SECRET_KEY = process.env.SECRET_KEY;
-
-// Registro de un nuevo usuario
-const registerUser = (req, res) => {
-  const { username, password } = req.body;
-  
-  // Validación básica
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Nombre de usuario y contraseña son requeridos.' });
-  }
-  
-  // Hash de la contraseña
-  const hashedPassword = bcrypt.hashSync(password, 10);
-
-  // Insertar el nuevo usuario en la base de datos
-  const query = 'INSERT INTO users (username, password) VALUES (?, ?)';
-  db.query(query, [username, hashedPassword], (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: 'Error al crear el usuario' });
-    }
-    res.status(201).json({ message: 'Usuario registrado exitosamente' });
-  });
-};
-
+import { database } from '../db/database.js';
 // Inicio de sesión
-const loginUser = (req, res) => {
-  const { username, password } = req.body;
+export const loginUser = (req, res) => {
+    const { username, password } = req.body;
 
-  // Verificar si el usuario existe
-  const query = 'SELECT * FROM users WHERE username = ?';
-  db.query(query, [username], (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    }
+    const user = database.user.find(u => u.username === username && u.password === password);
 
-    const user = results[0];
-
-    // Comparar la contraseña con el hash almacenado
-    if (bcrypt.compareSync(password, user.password)) {
-      // Generar JWT
-      const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY, { expiresIn: '5h' });
-      res.json({ token, message: 'Inicio de sesión exitoso' });
+    if (user) {
+        req.session.userId = user.id;
+        req.session.username = user.username;
+        res.json({ message: 'Inicio de sesión exitoso', user: { id: user.id, username: user.username } });
     } else {
-      res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+        res.status(401).json({ message: 'Credenciales incorrectas' });
     }
-  });
 };
 
-// Ver sesión del usuario (si está autenticado)
-const getSession = (req, res) => {
-  res.json({ user: req.user, message: 'Sesión válida' });
+// Obtener la sesión actual
+export const getSession = (req, res) => {
+    if (req.session.userId) {
+        res.json({ loggedIn: true, user: { id: req.session.userId, username: req.session.username } });
+    } else {
+        res.status(401).json({ loggedIn: false, message: 'No hay sesión activa' });
+    }
 };
 
-// Cerrar sesión (en el frontend, se elimina el token)
-const logoutUser = (req, res) => {
-  res.json({ message: 'Sesión cerrada exitosamente' });
+// Cerrar sesión
+export const logoutUser = (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            res.status(500).json({ message: 'Error al cerrar la sesión' });
+        } else {
+            res.clearCookie('connect.sid');
+            res.json({ message: 'Sesión cerrada exitosamente' });
+        }
+    });
 };
-
-module.exports = { registerUser, loginUser, getSession, logoutUser };
