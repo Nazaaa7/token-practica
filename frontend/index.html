@@ -45,18 +45,30 @@
                 return;
             }
 
-            fetch('http://localhost:4000/login', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ username, password })
-});
+            try {
+                const response = await fetch('http://localhost:4000/login', {
+                    method: 'POST',
+                    credentials: 'include', // Importante para enviar las cookies de sesión
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
 
+                if (!response.ok) {
+                    const errorData = await response.json(); // Obtener mensaje de error del servidor
+                    document.getElementById('message').innerText = errorData.message || 'Credenciales inválidas';
+                    return;
+                }
 
-           
-          
+                const data = await response.json();
+                console.log(data);
+                window.location.href = './views/home.html';
+
+            } catch (error) {
+                console.error('Error en la solicitud:', error);
+                document.getElementById('message').innerText = 'Hubo un error al procesar la solicitud.';
+            }
         });
     </script>
 </body>
